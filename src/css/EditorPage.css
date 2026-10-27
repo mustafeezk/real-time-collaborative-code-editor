@@ -1,0 +1,42 @@
+
+.editor-page {
+  padding: 24px;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0;
+}
+
+.editor-actions button {
+  background: #16a34a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.editor-actions button:hover {
+  background: #15803d;
+}
+
+.output-panel {
+  border: 1px solid #353944;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.output-panel h3 {
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid #353944;
+  font-size: 15px;
+}
+
+.output-content {
+  min-height: 120px;
+  background: #17191f;
+}

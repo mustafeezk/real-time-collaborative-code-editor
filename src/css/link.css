@@ -1,0 +1,128 @@
+/* Page background and centering */
+.home-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: #0f172a;
+  font-family: Arial, sans-serif;
+  color: #f8fafc;
+}
+
+/* Form card */
+.room-form {
+  width: 100%;
+  max-width: 420px;
+  padding: 36px;
+  box-sizing: border-box;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+/* Heading */
+.form-header {
+  margin-bottom: 30px;
+}
+
+.form-header h2 {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.form-header p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Labels and inputs */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 22px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 13px 14px;
+  box-sizing: border-box;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  outline: none;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input::placeholder {
+  color: #64748b;
+}
+
+.form-group input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+/* Create button */
+.create-room-btn {
+  width: 100%;
+  padding: 14px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.create-room-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.create-room-btn:active {
+  transform: translateY(0);
+}
+
+.create-room-btn:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+/* Footer */
+.form-footer {
+  margin: 22px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* Smaller screens */
+@media (max-width: 480px) {
+  .room-form {
+    padding: 26px 22px;
+  }
+  
+  .form-header h2 {
+    font-size: 23px;
+  }
+}
