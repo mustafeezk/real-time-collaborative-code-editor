@@ -49,10 +49,11 @@ function Home() {
                 );
             }
 
-            console.log("Room created:", data);
-
-            // Handle the successful response here.
-            alert("Room created successfully!");
+            sessionStorage.setItem(
+                `joinedRoom:${data.room.id}`,
+                formData.username.trim()
+            );
+            window.location.assign(data.shareUrl);
         } catch (err) {
             console.error("Error creating room:", err);
             setError(err.message || "Something went wrong");
