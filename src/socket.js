@@ -3,6 +3,7 @@ import { ChangeSet, Text } from "@codemirror/state";
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { executeJava } from "./services/javaExecutionService.js";
+import { createRoomCleanupService } from "./services/roomCleanupService.js";
 
 const STARTER_CODE = `public class Main {
     public static void main(String[] args) {
@@ -131,6 +132,17 @@ export function attachRoomSockets(io, pool) {
   const roomQueues = new Map();
   const activeExecutions = new Map();
   const latestExecutionResults = new Map();
+  const roomCleanup = createRoomCleanupService({
+    io,
+    pool,
+    getPendingUpdates: (roomId) => roomQueues.get(roomId),
+    isExecutionActive: (roomId) => activeExecutions.has(roomId),
+    onRoomDeleted: (roomId) => {
+      roomQueues.delete(roomId);
+      activeExecutions.delete(roomId);
+      latestExecutionResults.delete(roomId);
+    },
+  });
 
   function releaseExecution(roomId, executionId, reason) {
     const active = activeExecutions.get(roomId);
@@ -220,58 +232,103 @@ export function attachRoomSockets(io, pool) {
 
   io.on("connection", (socket) => {
     socket.on("room:join", async ({ roomId, userName } = {}, acknowledge = () => {}) => {
+      if (typeof roomId !== "string" || typeof userName !== "string" || !userName.trim()) {
+        return acknowledge({ ok: false, message: "Room and display name are required" });
+      }
+
+      roomCleanup.beginJoin(roomId);
+      let roomExists = false;
+      let joined = false;
+
       try {
-        if (typeof roomId !== "string" || typeof userName !== "string" || !userName.trim()) {
-          return acknowledge({ ok: false, message: "Room and display name are required" });
-        }
+        await roomCleanup.runLifecycle(roomId, async () => {
+          if (!socket.connected) return;
+          const [rooms] = await pool.execute(
+            "SELECT id FROM Room WHERE id = ? LIMIT 1",
+            [roomId]
+          );
+          if (rooms.length === 0) {
+            acknowledge({ ok: false, message: "Room not found" });
+            return;
+          }
+          roomExists = true;
 
-        const [rooms] = await pool.execute(
-          "SELECT id FROM Room WHERE id = ? LIMIT 1",
-          [roomId]
-        );
-        if (rooms.length === 0) {
-          return acknowledge({ ok: false, message: "Room not found" });
-        }
+          await pool.execute(
+            `INSERT IGNORE INTO RoomState (roomId, code, version)
+             VALUES (?, ?, 0)`,
+            [roomId, STARTER_CODE]
+          );
+          await pool.execute(
+            `UPDATE RoomState
+             SET code = ?
+             WHERE roomId = ? AND version = 0 AND code = ?`,
+            [STARTER_CODE, roomId, LEGACY_STARTER_CODE]
+          );
+          const [states] = await pool.execute(
+            "SELECT code, version FROM RoomState WHERE roomId = ? LIMIT 1",
+            [roomId]
+          );
 
-        await pool.execute(
-          `INSERT IGNORE INTO RoomState (roomId, code, version)
-           VALUES (?, ?, 0)`,
-          [roomId, STARTER_CODE]
-        );
-        await pool.execute(
-          `UPDATE RoomState
-           SET code = ?
-           WHERE roomId = ? AND version = 0 AND code = ?`,
-          [STARTER_CODE, roomId, LEGACY_STARTER_CODE]
-        );
-        const [states] = await pool.execute(
-          "SELECT code, version FROM RoomState WHERE roomId = ? LIMIT 1",
-          [roomId]
-        );
-
-        socket.data.roomId = roomId;
-        socket.data.userName = userName.trim().slice(0, 100);
-        await socket.join(roomId);
-        const roomState = {
-          ok: true,
-          code: states[0].code,
-          version: Number(states[0].version),
-          activeExecution: activeExecutions.get(roomId)
-            ? {
-                executionId: activeExecutions.get(roomId).executionId,
-                roomId,
-                requestedBy: activeExecutions.get(roomId).requestedBy,
-                documentVersion: activeExecutions.get(roomId).documentVersion,
-                status: activeExecutions.get(roomId).status,
-              }
-            : null,
-          latestExecutionResult: latestExecutionResults.get(roomId) || null,
-        };
-        acknowledge(roomState);
-        socket.emit("room:joined", { version: roomState.version });
+          if (!socket.connected) return;
+          socket.data.roomId = roomId;
+          socket.data.userName = userName.trim().slice(0, 100);
+          await socket.join(roomId);
+          if (!socket.connected) {
+            await socket.leave(roomId);
+            socket.data.roomId = null;
+            socket.data.userName = null;
+            return;
+          }
+          joined = true;
+          const activeExecution = activeExecutions.get(roomId);
+          const roomState = {
+            ok: true,
+            code: states[0].code,
+            version: Number(states[0].version),
+            activeExecution: activeExecution
+              ? {
+                  executionId: activeExecution.executionId,
+                  roomId,
+                  requestedBy: activeExecution.requestedBy,
+                  documentVersion: activeExecution.documentVersion,
+                  status: activeExecution.status,
+                }
+              : null,
+            latestExecutionResult: latestExecutionResults.get(roomId) || null,
+          };
+          acknowledge(roomState);
+          socket.emit("room:joined", { version: roomState.version });
+        });
       } catch (error) {
         console.error("Socket room join error:", error);
         acknowledge({ ok: false, message: "Could not join room" });
+      } finally {
+        roomCleanup.finishJoin(roomId);
+        if (roomExists && !joined) void roomCleanup.checkAfterLeave(roomId);
+      }
+    });
+
+    socket.on("room:leave", async ({ roomId } = {}, acknowledge = () => {}) => {
+      const joinedRoomId = socket.data.roomId;
+      if (!joinedRoomId || (roomId && roomId !== joinedRoomId)) {
+        return acknowledge({ ok: false, message: "Socket is not in that room" });
+      }
+
+      try {
+        await socket.leave(joinedRoomId);
+        socket.data.roomId = null;
+        socket.data.userName = null;
+
+        const active = activeExecutions.get(joinedRoomId);
+        if (active?.socketId === socket.id && active.status === "Queued") {
+          releaseExecution(joinedRoomId, active.executionId, "requester-left");
+        }
+
+        acknowledge({ ok: true });
+        await roomCleanup.checkAfterLeave(joinedRoomId);
+      } catch (error) {
+        console.error(`Socket leave error for room ${joinedRoomId}:`, error);
+        acknowledge({ ok: false, message: "Could not leave room" });
       }
     });
 
@@ -450,6 +507,7 @@ export function attachRoomSockets(io, pool) {
       if (active?.socketId === socket.id && active.status === "Queued") {
         releaseExecution(roomId, active.executionId, "requester-disconnected");
       }
+      if (roomId) void roomCleanup.checkAfterLeave(roomId);
     });
   });
 }

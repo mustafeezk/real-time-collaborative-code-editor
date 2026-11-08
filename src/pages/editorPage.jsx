@@ -183,7 +183,7 @@ export default function EditorPage({ roomId }) {
         <div className="state-card">
           <BrandMark compact />
           <span className="loading-spinner" aria-hidden="true" />
-          <h1>Connecting to {room.name}</h1>
+          <h1>{socketError ? "Room unavailable" : `Connecting to ${room.name}`}</h1>
           <p role="status">{socketError || socketStatus}</p>
         </div>
       </main>

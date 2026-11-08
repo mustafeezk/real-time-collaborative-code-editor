@@ -24,6 +24,11 @@ export default function useRoomSocket({
       setStatus("Joining room…");
       roomSocket.emit("room:join", { roomId, userName }, (result) => {
         if (!result?.ok) {
+          initialStateRef.current = null;
+          setInitialState(null);
+          setSocket(null);
+          setActiveExecution(null);
+          setExecutionResult(null);
           setStatus("Not connected");
           setError(result?.message || "Could not join room");
           return;
@@ -89,7 +94,16 @@ export default function useRoomSocket({
     });
 
     return () => {
-      roomSocket.disconnect();
+      if (!roomSocket.connected) {
+        roomSocket.disconnect();
+        return;
+      }
+
+      const disconnectFallback = window.setTimeout(() => roomSocket.disconnect(), 500);
+      roomSocket.emit("room:leave", { roomId }, () => {
+        window.clearTimeout(disconnectFallback);
+        roomSocket.disconnect();
+      });
     };
   }, [enabled, roomId, userName]);
 
