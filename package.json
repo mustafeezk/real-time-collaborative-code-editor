@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "docker:build:java": "docker build -t collab-java-runner:local ./docker/java-runner",
     "start": "node src/server.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/collab": "^6.1.1",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-java": "^6.0.2",
     "@codemirror/lang-javascript": "^6.2.5",

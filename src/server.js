@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { createServer } from "node:http";
+import process from "node:process";
 import { Server } from "socket.io";
 import app from "./app.js";
 import pool from "./config/db.js";

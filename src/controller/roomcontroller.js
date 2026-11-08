@@ -2,6 +2,12 @@
 import { randomUUID } from "node:crypto";
 import pool from "../config/db.js";
 
+const STARTER_CODE = `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, world!");
+    }
+}`;
+
 async function createRoom(req, res) {
   try {
     const { userName, roomName } = req.body;
@@ -46,7 +52,7 @@ async function createRoom(req, res) {
       await connection.execute(
         `INSERT INTO RoomState (roomId, code)
          VALUES (?, ?)`,
-        [roomId, 'console.log("Hello, world!");']
+        [roomId, STARTER_CODE]
       );
 
       // 4. Save the creator as the first participant
@@ -91,13 +97,14 @@ async function getRoom(req, res) {
   try {
     const [rows] = await pool.execute(
       `SELECT r.id, r.name, r.createdByName,
-              COALESCE(s.code, 'console.log("Hello, world!");') AS code,
+              COALESCE(s.code, ?) AS code,
+              COALESCE(s.version, 0) AS version,
               s.updatedAt
        FROM Room AS r
        LEFT JOIN RoomState AS s ON s.roomId = r.id
        WHERE r.id = ?
        LIMIT 1`,
-      [req.params.roomId]
+      [STARTER_CODE, req.params.roomId]
     );
 
     if (rows.length === 0) {
@@ -152,40 +159,4 @@ async function joinRoom(req, res) {
   }
 }
 
-async function saveRoomState(req, res) {
-  try {
-    const { roomId } = req.params;
-    const { code } = req.body;
-
-    if (typeof code !== "string") {
-      return res.status(400).json({ message: "code must be a string" });
-    }
-
-    if (Buffer.byteLength(code, "utf8") > 1_000_000) {
-      return res.status(413).json({ message: "Code exceeds the 1 MB limit" });
-    }
-
-    const [rooms] = await pool.execute(
-      "SELECT id FROM Room WHERE id = ? LIMIT 1",
-      [roomId]
-    );
-
-    if (rooms.length === 0) {
-      return res.status(404).json({ message: "Room not found" });
-    }
-
-    await pool.execute(
-      `INSERT INTO RoomState (roomId, code)
-       VALUES (?, ?)
-       ON DUPLICATE KEY UPDATE code = VALUES(code)`,
-      [roomId, code]
-    );
-
-    return res.json({ message: "Room code saved" });
-  } catch (error) {
-    console.error("Save room state error:", error);
-    return res.status(500).json({ message: "Failed to save room code" });
-  }
-}
-
-export { createRoom, getRoom, joinRoom, saveRoomState };
+export { createRoom, getRoom, joinRoom };

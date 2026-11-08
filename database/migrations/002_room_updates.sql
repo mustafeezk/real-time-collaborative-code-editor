@@ -1,0 +1,12 @@
+ALTER TABLE RoomState
+  ADD COLUMN version BIGINT UNSIGNED NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS RoomUpdate (
+  roomId VARCHAR(36) NOT NULL,
+  version BIGINT UNSIGNED NOT NULL,
+  clientId VARCHAR(128) NOT NULL,
+  changes LONGTEXT NOT NULL,
+  createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (roomId, version),
+  INDEX room_update_created_at (roomId, createdAt)
+) ENGINE=InnoDB;
